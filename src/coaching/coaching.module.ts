@@ -8,6 +8,7 @@ import { AiModule } from '../ai/ai.module';
 import { ProfilesModule } from '../profiles/profiles.module';
 import { CoachingFeedbackEntity } from './entities/feedback.entity';
 import { CoachingFeedbackService } from './coaching-feedback.service';
+import { CoachingV2Controller } from './coaching-v2.controller';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { CoachingFeedbackService } from './coaching-feedback.service';
     AiModule,
     ProfilesModule,
   ],
-  controllers: [CoachingController],
+  controllers: [CoachingController, CoachingV2Controller],
   providers: [CoachingService, CoachingFeedbackService],
   exports: [CoachingService],
 })

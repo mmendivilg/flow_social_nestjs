@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { AiService } from './ai.service';
 import { OPENAI_CLIENT } from './ai.constants';
+import { AiV2Service } from './ai-v2.service';
 
 @Module({
   providers: [
@@ -15,7 +16,8 @@ import { OPENAI_CLIENT } from './ai.constants';
       },
     },
     AiService,
+    AiV2Service,
   ],
-  exports: [AiService],
+  exports: [AiService, AiV2Service],
 })
 export class AiModule {}
