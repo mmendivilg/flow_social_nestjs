@@ -25,6 +25,308 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## API usage (cURL)
+
+This project exposes a REST API for auth, profiles, preference sessions, and AI coaching.
+
+Set your base URL:
+
+```bash
+export API="http://localhost:3000"
+```
+
+Optional health check:
+
+```bash
+curl -sS "$API/"
+```
+
+### Authentication
+
+Register:
+
+```bash
+curl -sS -X POST "$API/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "you@example.com",
+    "password": "StrongPass123!"
+  }'
+```
+
+Login:
+
+```bash
+curl -sS -X POST "$API/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "you@example.com",
+    "password": "StrongPass123!"
+  }'
+```
+
+Both return:
+
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "..."
+}
+```
+
+Save tokens with `jq`:
+
+```bash
+TOKENS=$(curl -sS -X POST "$API/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"StrongPass123!"}')
+
+export ACCESS_TOKEN=$(echo "$TOKENS" | jq -r '.accessToken')
+export REFRESH_TOKEN=$(echo "$TOKENS" | jq -r '.refreshToken')
+```
+
+Refresh access token (use refresh token as Bearer token):
+
+```bash
+curl -sS -X POST "$API/auth/refresh" \
+  -H "Authorization: Bearer $REFRESH_TOKEN"
+```
+
+Logout:
+
+```bash
+curl -sS -X POST "$API/auth/logout" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### Profiles (auth required)
+
+Get current profile:
+
+```bash
+curl -sS "$API/profiles/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Update profile basics:
+
+```bash
+curl -sS -X PATCH "$API/profiles/me" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "displayName": "Manuel",
+    "locale": "es-MX",
+    "timezone": "America/Mazatlan"
+  }'
+```
+
+Replace full `profileJson`:
+
+```bash
+curl -sS -X PUT "$API/profiles/me/profile-json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profileJson": {
+      "tone": "casual",
+      "emoji_preference": "some"
+    }
+  }'
+```
+
+Merge patch into `profileJson`:
+
+```bash
+curl -sS -X PATCH "$API/profiles/me/profile-json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patch": {
+      "humor": "light"
+    }
+  }'
+```
+
+### Preference sessions (auth required)
+
+Create a preference session:
+
+```bash
+curl -sS -X POST "$API/preferences/sessions" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contextText": "I want help texting more confidently."
+  }'
+```
+
+Get latest session (optional `status=in_progress|completed`):
+
+```bash
+curl -sS "$API/preferences/sessions/latest?status=in_progress" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Get session by ID:
+
+```bash
+curl -sS "$API/preferences/sessions/<SESSION_ID>" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Update session context:
+
+```bash
+curl -sS -X PATCH "$API/preferences/sessions/<SESSION_ID>/context" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contextText": "I am looking for a serious relationship."
+  }'
+```
+
+Merge answers:
+
+```bash
+curl -sS -X PATCH "$API/preferences/sessions/<SESSION_ID>/answers" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "answersPatch": {
+      "intention": "serious_relationship",
+      "vibe": "quiet_polite",
+      "flirt_level": "light"
+    }
+  }'
+```
+
+Complete session:
+
+```bash
+curl -sS -X POST "$API/preferences/sessions/<SESSION_ID>/complete" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### Coaching v1 (auth required, stored in DB)
+
+Create coaching suggestion:
+
+```bash
+curl -sS -X POST "$API/coaching" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioText": "I met someone at a cafe and got her number.",
+    "lastMessageText": "Hey, nice meeting you :)",
+    "goal": "casual",
+    "vibe": "relax_joker",
+    "flirtLevel": "light",
+    "constraints": {
+      "language": "en",
+      "numOptions": 3,
+      "emojiLevel": "some"
+    }
+  }'
+```
+
+Allowed values:
+
+- `goal`: `casual`, `serious_relationship`, `just_chat`
+- `vibe`: `relax_joker`, `quiet_polite`, `confident_direct`, `reserved_respectful`
+- `flirtLevel`: `none`, `light`, `classy`
+
+List your coaching responses:
+
+```bash
+curl -sS "$API/coaching/responses?limit=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Get one response by ID:
+
+```bash
+curl -sS "$API/coaching/responses/<RESPONSE_ID>" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Leave feedback for a response:
+
+```bash
+curl -sS -X POST "$API/coaching/responses/<RESPONSE_ID>/feedback" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rating": "good",
+    "commentText": "Natural tone, maybe a bit long.",
+    "signals": {
+      "length": "too_long",
+      "would_send": true
+    },
+    "userRewriteText": "Hey! Great meeting you, how was your day?"
+  }'
+```
+
+Allowed feedback ratings:
+
+- `very_bad`
+- `bad`
+- `neutral`
+- `good`
+- `excellent`
+
+List your feedback:
+
+```bash
+curl -sS "$API/coaching/feedback?limit=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### Coaching v2 (public endpoint in current code)
+
+Generate structured coaching output:
+
+```bash
+curl -sS -X POST "$API/coaching-v2" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioText": "I matched with someone and want to send the first text.",
+    "lastMessageText": null,
+    "goal": "casual",
+    "vibe": "confident_direct",
+    "flirtLevel": "light",
+    "constraints": {
+      "language": "es",
+      "locale": "es-MX",
+      "numOptions": 3,
+      "emojiLevel": "some",
+      "riskTolerance": "balanced",
+      "includeRationale": true
+    }
+  }'
+```
+
+Typical response:
+
+```json
+{
+  "status": "success",
+  "message": "Hey 🙂 ...",
+  "options": [{ "text": "...", "label": "balanced" }],
+  "rationale": ["..."],
+  "safety": { "blocked": false, "flags": [] },
+  "detected": { "tone": ["..."], "askedQuestion": true, "energy": "medium" }
+}
+```
+
+### Swagger docs
+
+Swagger UI is available at:
+
+```text
+http://localhost:3000/docs
+```
+
 ## Project setup
 
 ```bash
