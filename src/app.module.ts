@@ -8,10 +8,16 @@ import { AuthModule } from './auth/auth.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { PreferencesModule } from './preferences/preferences.module';
 import { CoachingModule } from './coaching/coaching.module';
+import configuration from './config/configuration';
+import { validateEnv } from './config/env.validation';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      validate: validateEnv,
+    }),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         ...dataSource.options,

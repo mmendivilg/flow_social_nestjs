@@ -1,27 +1,39 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
+
   app.enableCors({
-    origin: ['http://localhost:4173'], // Vite preview default
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: config.getOrThrow<string[]>('app.cors.origins'),
+    credentials: config.getOrThrow<boolean>('app.cors.credentials'),
+    methods: config.getOrThrow<string[]>('app.cors.methods'),
+    allowedHeaders: config.getOrThrow<string[]>('app.cors.allowedHeaders'),
   });
 
-  const config = new DocumentBuilder()
-    .setTitle('Flow Social API')
-    .setDescription('Backend API for social coaching and tuning')
-    .setVersion('1.0.0')
-    .addBearerAuth() // if you use JWT
-    .build();
+  if (config.getOrThrow<boolean>('app.swagger.enabled')) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle(config.getOrThrow<string>('app.swagger.title'))
+      .setDescription(config.getOrThrow<string>('app.swagger.description'))
+      .setVersion(config.getOrThrow<string>('app.swagger.version'))
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup(
+      config.getOrThrow<string>('app.swagger.path'),
+      app,
+      document,
+    );
+  }
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(
+    config.getOrThrow<number>('app.port'),
+    config.getOrThrow<string>('app.host'),
+  );
 }
 
 void bootstrap();
