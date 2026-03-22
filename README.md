@@ -210,6 +210,11 @@ curl -sS -X POST "$API/preferences/sessions/<SESSION_ID>/complete" \
 
 ### Confidence test (auth required)
 
+Dev-only random profile mode:
+
+- Set `CONFIDENCE_TEST_DEV_RANDOMIZE_ON_STATE=true` (or `EXPO_PUBLIC_DEV_RANDOMIZE_CONFIDENCE_TEST=true`).
+- On every `GET /confidence-test/state`, the backend deletes that user's existing confidence-test state and recreates it with a random profile.
+
 Get current confidence-test state (this is what your frontend can call right after login):
 
 ```bash

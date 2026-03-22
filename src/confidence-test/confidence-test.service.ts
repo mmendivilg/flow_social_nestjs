@@ -44,6 +44,10 @@ export class ConfidenceTestService {
   ) {}
 
   async getState(userId: string): Promise<ConfidenceStateResponse> {
+    if (this.isDevRandomizeOnStateEnabled()) {
+      return this.recreateStateWithRandomProfile(userId);
+    }
+
     const test = await this.getOrCreateTest(userId);
     return this.toStateResponse(test);
   }
@@ -142,6 +146,47 @@ export class ConfidenceTestService {
         'Could not initialize confidence test',
       );
     }
+  }
+
+  private async recreateStateWithRandomProfile(
+    userId: string,
+  ): Promise<ConfidenceStateResponse> {
+    await this.testsRepo.delete({ userId });
+
+    const created = this.testsRepo.create({
+      userId,
+      status: 'pending',
+      assignedProfileId: this.pickRandomProfileId(),
+      attemptCount: 0,
+      latestScore: null,
+      latestFeedback: null,
+      latestResultJson: null,
+      completedAt: null,
+      skippedAt: null,
+    });
+
+    const saved = await this.testsRepo.save(created);
+    return this.toStateResponse(saved);
+  }
+
+  private isDevRandomizeOnStateEnabled(): boolean {
+    const raw =
+      process.env.CONFIDENCE_TEST_DEV_RANDOMIZE_ON_STATE ??
+      process.env.EXPO_PUBLIC_DEV_RANDOMIZE_CONFIDENCE_TEST;
+
+    if (!raw) return false;
+    return raw.trim().toLowerCase() === 'true';
+  }
+
+  private pickRandomProfileId(): string {
+    if (CONFIDENCE_TEST_PROFILES.length === 0) {
+      throw new ServiceUnavailableException(
+        'No confidence-test profiles configured',
+      );
+    }
+
+    const index = Math.floor(Math.random() * CONFIDENCE_TEST_PROFILES.length);
+    return CONFIDENCE_TEST_PROFILES[index].id;
   }
 
   private pickProfileIdForUser(userId: string): string {
