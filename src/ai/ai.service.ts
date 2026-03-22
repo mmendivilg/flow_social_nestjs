@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
+import { z } from 'zod';
 import type {
   CoachingGoal,
   CoachingVibe,
@@ -24,6 +25,50 @@ type GenerateCoachingResult = {
   usage?: Record<string, unknown>;
   providerResponseId?: string;
 };
+
+type EvaluateConfidenceInput = {
+  messageText: string;
+  instagramHandle: string;
+};
+
+type EvaluateConfidenceResult = {
+  score: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+  model?: string;
+  usage?: Record<string, unknown>;
+  providerResponseId?: string;
+};
+
+const confidenceEvaluationSchema = z.object({
+  score: z.number().int().min(1).max(10),
+  feedback: z.string().min(1),
+  strengths: z.array(z.string().min(1)).max(3).default([]),
+  improvements: z.array(z.string().min(1)).max(3).default([]),
+});
+
+function extractJsonObject(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Ignore parse errors and attempt extraction below.
+  }
+
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+
+  if (start >= 0 && end > start) {
+    const candidate = text.slice(start, end + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Ignore parse errors and fallback to null.
+    }
+  }
+
+  return null;
+}
 
 @Injectable()
 export class AiService {
@@ -76,6 +121,52 @@ export class AiService {
         vibe: input.vibe,
         flirtLevel: input.flirtLevel,
       },
+    };
+  }
+
+  async evaluateConfidenceMessage(
+    input: EvaluateConfidenceInput,
+  ): Promise<EvaluateConfidenceResult> {
+    const model =
+      process.env.OPENAI_CONFIDENCE_MODEL ??
+      process.env.OPENAI_MODEL ??
+      'gpt-5.2';
+
+    const instructions = [
+      'You are an evaluator for a social confidence training app.',
+      'Rate only the confidence and social quality of the message on a 1-10 scale.',
+      'Focus on clarity, confidence, warmth, and respect.',
+      'Penalize rude, manipulative, needy, or creepy tone.',
+      'Output strict JSON only with keys: score, feedback, strengths, improvements.',
+      'Keep feedback practical and short.',
+    ].join('\n');
+
+    const prompt = [
+      `Instagram handle: ${input.instagramHandle}`,
+      `Message to evaluate: ${input.messageText}`,
+      '',
+      'Return JSON only.',
+    ].join('\n');
+
+    const resp = await this.client.responses.create({
+      model,
+      instructions,
+      input: prompt,
+    });
+
+    const parsed = confidenceEvaluationSchema.safeParse(
+      extractJsonObject(resp.output_text ?? ''),
+    );
+
+    if (!parsed.success) {
+      throw new Error('Could not parse confidence score from AI response');
+    }
+
+    return {
+      ...parsed.data,
+      model: resp.model ?? model,
+      usage: (resp as unknown as { usage?: Record<string, unknown> }).usage,
+      providerResponseId: resp.id,
     };
   }
 }

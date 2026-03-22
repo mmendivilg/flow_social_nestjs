@@ -10,6 +10,7 @@ import { PreferencesModule } from './preferences/preferences.module';
 import { CoachingModule } from './coaching/coaching.module';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
+import { ConfidenceTestModule } from './confidence-test/confidence-test.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { validateEnv } from './config/env.validation';
     ProfilesModule,
     PreferencesModule,
     CoachingModule,
+    ConfidenceTestModule,
   ],
   controllers: [AppController],
   providers: [AppService],

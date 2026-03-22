@@ -208,6 +208,110 @@ curl -sS -X POST "$API/preferences/sessions/<SESSION_ID>/complete" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
+### Confidence test (auth required)
+
+Get current confidence-test state (this is what your frontend can call right after login):
+
+```bash
+curl -sS "$API/confidence-test/state" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "testId": "d86be2ce-2413-41bf-9fd0-8e1a939235e5",
+  "status": "pending",
+  "shouldShowOnLogin": true,
+  "profile": {
+    "id": "luna.ramirez",
+    "instagramHandle": "@luna.ramirez",
+    "avatarUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=256&h=256&auto=format&fit=crop",
+    "lastSeen": "Seen 12m ago",
+    "backgroundImageUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=1974&auto=format&fit=crop"
+  },
+  "attemptCount": 0,
+  "latestScore": null,
+  "latestFeedback": null,
+  "strengths": [],
+  "improvements": [],
+  "completedAt": null,
+  "skippedAt": null,
+  "updatedAt": "2026-03-22T18:10:32.511Z"
+}
+```
+
+Submit a message and get a 1-10 confidence score:
+
+```bash
+curl -sS -X POST "$API/confidence-test/score" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messageText": "Hey Luna, your travel shots are awesome. If you are up for it, I would love to keep talking."
+  }'
+```
+
+Example response:
+
+```json
+{
+  "testId": "d86be2ce-2413-41bf-9fd0-8e1a939235e5",
+  "status": "completed",
+  "shouldShowOnLogin": false,
+  "profile": {
+    "id": "luna.ramirez",
+    "instagramHandle": "@luna.ramirez",
+    "avatarUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=256&h=256&auto=format&fit=crop",
+    "lastSeen": "Seen 12m ago",
+    "backgroundImageUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=1974&auto=format&fit=crop"
+  },
+  "attemptCount": 1,
+  "latestScore": 8,
+  "latestFeedback": "Clear and respectful tone. Add a slightly more personal hook to feel less generic.",
+  "strengths": ["Respectful opener", "Confident phrasing"],
+  "improvements": ["Be more specific to her profile"],
+  "completedAt": "2026-03-22T18:12:02.901Z",
+  "skippedAt": null,
+  "updatedAt": "2026-03-22T18:12:02.901Z",
+  "score": 8,
+  "feedback": "Clear and respectful tone. Add a slightly more personal hook to feel less generic."
+}
+```
+
+Skip the confidence test:
+
+```bash
+curl -sS -X POST "$API/confidence-test/skip" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "testId": "d86be2ce-2413-41bf-9fd0-8e1a939235e5",
+  "status": "skipped",
+  "shouldShowOnLogin": false,
+  "profile": {
+    "id": "luna.ramirez",
+    "instagramHandle": "@luna.ramirez",
+    "avatarUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=256&h=256&auto=format&fit=crop",
+    "lastSeen": "Seen 12m ago",
+    "backgroundImageUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=1974&auto=format&fit=crop"
+  },
+  "attemptCount": 0,
+  "latestScore": null,
+  "latestFeedback": null,
+  "strengths": [],
+  "improvements": [],
+  "completedAt": null,
+  "skippedAt": "2026-03-22T18:11:10.103Z",
+  "updatedAt": "2026-03-22T18:11:10.103Z"
+}
+```
+
 ### Coaching v1 (auth required, stored in DB)
 
 Create coaching suggestion:
@@ -227,7 +331,7 @@ curl -sS -X POST "$API/coaching" \
       "numOptions": 3,
       "emojiLevel": "some"
     }
-  }'
+  '
 ```
 
 Allowed values:
@@ -264,7 +368,7 @@ curl -sS -X POST "$API/coaching/responses/<RESPONSE_ID>/feedback" \
       "would_send": true
     },
     "userRewriteText": "Hey! Great meeting you, how was your day?"
-  }'
+  '
 ```
 
 Allowed feedback ratings:
