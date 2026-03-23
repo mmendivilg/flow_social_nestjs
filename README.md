@@ -215,6 +215,8 @@ Dev-only random profile mode:
 - Set `CONFIDENCE_TEST_DEV_RANDOMIZE_ON_STATE=true` (or `EXPO_PUBLIC_DEV_RANDOMIZE_CONFIDENCE_TEST=true`).
 - On every `GET /confidence-test/state`, the backend deletes that user's existing confidence-test state and recreates it with a random profile.
 
+- Optional local debugging: set `CONFIDENCE_TEST_LOG_RAW_AI_OUTPUT=true` to include a short raw AI output preview when JSON parsing fails (keep it `false` in production).
+
 Get current confidence-test state (this is what your frontend can call right after login):
 
 ```bash

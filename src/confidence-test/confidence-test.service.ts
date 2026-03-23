@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AiService } from '../ai/ai.service';
+import { randomUUID } from 'node:crypto';
+import { AiService, ConfidenceEvaluationError } from '../ai/ai.service';
 import {
   ConfidenceTestEntity,
   ConfidenceTestStatus,
@@ -37,6 +39,8 @@ type ScoreConfidenceResponse = ConfidenceStateResponse & {
 
 @Injectable()
 export class ConfidenceTestService {
+  private readonly logger = new Logger(ConfidenceTestService.name);
+
   constructor(
     @InjectRepository(ConfidenceTestEntity)
     private readonly testsRepo: Repository<ConfidenceTestEntity>,
@@ -77,7 +81,21 @@ export class ConfidenceTestService {
         messageText,
         instagramHandle: profile.instagramHandle,
       });
-    } catch {
+    } catch (error) {
+      const errorId = randomUUID();
+      const metadata = this.buildScoringErrorMetadata({
+        errorId,
+        error,
+        userId: params.userId,
+        profileId: profile.id,
+        messageLength: messageText.length,
+      });
+
+      this.logger.error(
+        `Confidence scoring failed ${JSON.stringify(metadata)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
       throw new ServiceUnavailableException(
         'Confidence scoring is temporarily unavailable',
       );
@@ -247,5 +265,56 @@ export class ConfidenceTestService {
   private getStringArray(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private buildScoringErrorMetadata(params: {
+    errorId: string;
+    error: unknown;
+    userId: string;
+    profileId: string;
+    messageLength: number;
+  }): Record<string, unknown> {
+    const { error, errorId, userId, profileId, messageLength } = params;
+    const errorRecord = this.asRecord(error);
+    const providerError = this.asRecord(errorRecord?.['error']);
+
+    const details =
+      error instanceof ConfidenceEvaluationError
+        ? error.details
+        : this.asRecord(errorRecord?.['details']);
+
+    return {
+      errorId,
+      userId,
+      profileId,
+      messageLength,
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      openaiStatus: this.toNumber(errorRecord?.['status']),
+      openaiCode:
+        this.toString(errorRecord?.['code']) ??
+        this.toString(providerError?.['code']),
+      openaiType:
+        this.toString(errorRecord?.['type']) ??
+        this.toString(providerError?.['type']),
+      openaiRequestId: this.toString(errorRecord?.['requestID']),
+      openaiParam:
+        this.toString(errorRecord?.['param']) ??
+        this.toString(providerError?.['param']),
+      details,
+    };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object') return null;
+    return value as Record<string, unknown>;
+  }
+
+  private toString(value: unknown): string | null {
+    return typeof value === 'string' && value.length > 0 ? value : null;
+  }
+
+  private toNumber(value: unknown): number | null {
+    return typeof value === 'number' ? value : null;
   }
 }

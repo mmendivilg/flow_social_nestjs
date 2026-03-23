@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
+import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 import type {
   CoachingGoal,
@@ -41,6 +42,21 @@ type EvaluateConfidenceResult = {
   providerResponseId?: string;
 };
 
+type ConfidenceEvaluationErrorDetails = {
+  reason: 'invalid_ai_output';
+  providerResponseId: string | null;
+  model: string;
+  outputTextLength: number;
+  outputPreview?: string;
+};
+
+export class ConfidenceEvaluationError extends Error {
+  constructor(readonly details: ConfidenceEvaluationErrorDetails) {
+    super('Could not parse confidence score from AI response');
+    this.name = 'ConfidenceEvaluationError';
+  }
+}
+
 const confidenceEvaluationSchema = z.object({
   score: z.number().int().min(1).max(10),
   feedback: z.string().min(1),
@@ -48,26 +64,10 @@ const confidenceEvaluationSchema = z.object({
   improvements: z.array(z.string().min(1)).max(3).default([]),
 });
 
-function extractJsonObject(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Ignore parse errors and attempt extraction below.
-  }
-
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-
-  if (start >= 0 && end > start) {
-    const candidate = text.slice(start, end + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      // Ignore parse errors and fallback to null.
-    }
-  }
-
-  return null;
+function shouldLogConfidenceRawOutput(): boolean {
+  const raw = process.env.CONFIDENCE_TEST_LOG_RAW_AI_OUTPUT;
+  if (!raw) return false;
+  return raw.trim().toLowerCase() === 'true';
 }
 
 @Injectable()
@@ -148,25 +148,56 @@ export class AiService {
       'Return JSON only.',
     ].join('\n');
 
-    const resp = await this.client.responses.create({
-      model,
-      instructions,
-      input: prompt,
-    });
+    try {
+      const resp = await this.client.responses.parse({
+        model,
+        instructions,
+        input: prompt,
+        text: {
+          format: zodTextFormat(
+            confidenceEvaluationSchema,
+            'confidence_evaluation',
+          ),
+        },
+      });
 
-    const parsed = confidenceEvaluationSchema.safeParse(
-      extractJsonObject(resp.output_text ?? ''),
-    );
+      const parsed = resp.output_parsed;
+      if (!parsed) {
+        const rawOutput = resp.output_text ?? '';
+        const details: ConfidenceEvaluationErrorDetails = {
+          reason: 'invalid_ai_output',
+          providerResponseId: resp.id ?? null,
+          model: resp.model ?? model,
+          outputTextLength: rawOutput.length,
+        };
 
-    if (!parsed.success) {
-      throw new Error('Could not parse confidence score from AI response');
+        if (shouldLogConfidenceRawOutput()) {
+          details.outputPreview = rawOutput.slice(0, 500);
+        }
+
+        throw new ConfidenceEvaluationError(details);
+      }
+
+      return {
+        ...parsed,
+        model: resp.model ?? model,
+        usage: (resp as unknown as { usage?: Record<string, unknown> }).usage,
+        providerResponseId: resp.id,
+      };
+    } catch (error) {
+      if (error instanceof z.ZodError || error instanceof SyntaxError) {
+        throw new ConfidenceEvaluationError({
+          reason: 'invalid_ai_output',
+          providerResponseId: null,
+          model,
+          outputTextLength: 0,
+          outputPreview: shouldLogConfidenceRawOutput()
+            ? String(error.message ?? '').slice(0, 500)
+            : undefined,
+        });
+      }
+
+      throw error;
     }
-
-    return {
-      ...parsed.data,
-      model: resp.model ?? model,
-      usage: (resp as unknown as { usage?: Record<string, unknown> }).usage,
-      providerResponseId: resp.id,
-    };
   }
 }
