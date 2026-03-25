@@ -27,7 +27,7 @@
 
 ## API usage (cURL)
 
-This project exposes a REST API for auth, profiles, preference sessions, and AI coaching.
+This project exposes a REST API for auth, profiles, preference sessions, conversation assistant, confidence test, and AI coaching.
 
 Set your base URL:
 
@@ -316,6 +316,372 @@ Example response:
   "completedAt": null,
   "skippedAt": "2026-03-22T18:11:10.103Z",
   "updatedAt": "2026-03-22T18:11:10.103Z"
+}
+```
+
+### Conversation assistant (auth required)
+
+Allowed chat types:
+
+- `dating`
+- `friends`
+- `work`
+- `general`
+
+Allowed submit modes:
+
+- `suggest_reply`
+- `ask_advice`
+
+Create a conversation chat:
+
+```bash
+curl -sS -X POST "$API/conversation/chats" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "dating",
+    "title": "Luna - WhatsApp"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "type": "dating",
+  "title": "Luna - WhatsApp",
+  "createdAt": "2026-03-23T19:00:10.031Z",
+  "updatedAt": "2026-03-23T19:00:10.031Z"
+}
+```
+
+Save chat id for next requests:
+
+```bash
+export CHAT_ID="6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7"
+```
+
+List your conversation chats (cursor pagination):
+
+```bash
+curl -sS "$API/conversation/chats?limit=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "items": [
+    {
+      "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+      "type": "dating",
+      "title": "Luna - WhatsApp",
+      "createdAt": "2026-03-23T19:00:10.031Z",
+      "updatedAt": "2026-03-23T19:02:45.903Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Update a conversation chat (type and/or title):
+
+```bash
+curl -sS -X PATCH "$API/conversation/chats/$CHAT_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "friends",
+    "title": "Luna - Chill chat"
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "type": "friends",
+  "title": "Luna - Chill chat",
+  "createdAt": "2026-03-23T19:00:10.031Z",
+  "updatedAt": "2026-03-23T19:03:30.277Z"
+}
+```
+
+List chat history entries for one chat:
+
+```bash
+curl -sS "$API/conversation/chats/$CHAT_ID/entries?limit=20" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Example response:
+
+```json
+{
+  "items": [
+    {
+      "id": "9f9ad52d-4e53-4bcf-9d76-1daec3f02456",
+      "chatId": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+      "role": "assistant_output",
+      "mode": "suggest_reply",
+      "status": "success",
+      "contentText": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee.",
+      "sourceText": null,
+      "ocrText": null,
+      "payload": {
+        "mode": "suggest_reply",
+        "bestOption": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee.",
+        "options": [
+          {
+            "label": "safe",
+            "text": "Hey 🙂 sounds great. How has your week been?"
+          },
+          {
+            "label": "balanced",
+            "text": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee."
+          },
+          {
+            "label": "bold",
+            "text": "You seem fun. Let us stop texting and do coffee this week."
+          }
+        ],
+        "rationale": ["Balanced tone", "Clear invite", "Respectful and direct"]
+      },
+      "model": "gpt-5.2",
+      "usage": null,
+      "errorMessage": null,
+      "createdAt": "2026-03-23T19:02:45.903Z"
+    },
+    {
+      "id": "d9a9ed0b-6e3c-4a85-a60f-3d2e4f975f45",
+      "chatId": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+      "role": "user_submission",
+      "mode": "suggest_reply",
+      "status": "success",
+      "contentText": "Pasted text:\nShe said: maybe we can do coffee this week",
+      "sourceText": "She said: maybe we can do coffee this week",
+      "ocrText": null,
+      "payload": {
+        "imageCount": 0,
+        "mode": "suggest_reply"
+      },
+      "model": null,
+      "usage": null,
+      "errorMessage": null,
+      "createdAt": "2026-03-23T19:02:44.118Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+Submit text/images to generate output (`multipart/form-data`):
+
+- `images[]` is optional (up to 3 images)
+- accepted image types: `image/png`, `image/jpeg`, `image/webp`
+- max size per image: `5 MB`
+- `text` is optional (max `5000` chars)
+- you must send at least one of `text` or `images[]`
+
+Submit a `suggest_reply` request:
+
+```bash
+curl -sS -X POST "$API/conversation/chats/$CHAT_ID/submit" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "mode=suggest_reply" \
+  -F "text=She said: maybe we can do coffee this week"
+```
+
+Example response:
+
+```json
+{
+  "chatId": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "userEntry": {
+    "id": "d9a9ed0b-6e3c-4a85-a60f-3d2e4f975f45",
+    "role": "user_submission",
+    "mode": "suggest_reply",
+    "contentText": "Pasted text:\nShe said: maybe we can do coffee this week",
+    "sourceText": "She said: maybe we can do coffee this week",
+    "ocrText": null,
+    "createdAt": "2026-03-23T19:02:44.118Z"
+  },
+  "assistantEntry": {
+    "id": "9f9ad52d-4e53-4bcf-9d76-1daec3f02456",
+    "role": "assistant_output",
+    "mode": "suggest_reply",
+    "status": "success",
+    "contentText": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee.",
+    "payload": {
+      "mode": "suggest_reply",
+      "bestOption": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee.",
+      "options": [
+        {
+          "label": "safe",
+          "text": "Hey 🙂 sounds great. How has your week been?"
+        },
+        {
+          "label": "balanced",
+          "text": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee."
+        },
+        {
+          "label": "bold",
+          "text": "You seem fun. Let us stop texting and do coffee this week."
+        }
+      ],
+      "rationale": ["Balanced tone", "Clear invite", "Respectful and direct"]
+    },
+    "model": "gpt-5.2",
+    "usage": null,
+    "errorMessage": null,
+    "createdAt": "2026-03-23T19:02:45.903Z"
+  },
+  "output": {
+    "mode": "suggest_reply",
+    "bestOption": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee.",
+    "options": [
+      {
+        "label": "safe",
+        "text": "Hey 🙂 sounds great. How has your week been?"
+      },
+      {
+        "label": "balanced",
+        "text": "Hey, sounds fun 🙂 I am free Thursday evening if you want to grab coffee."
+      },
+      {
+        "label": "bold",
+        "text": "You seem fun. Let us stop texting and do coffee this week."
+      }
+    ],
+    "rationale": ["Balanced tone", "Clear invite", "Respectful and direct"],
+    "model": "gpt-5.2"
+  },
+  "errorMessage": null
+}
+```
+
+Submit an `ask_advice` request with screenshot(s) and optional text:
+
+```bash
+curl -sS -X POST "$API/conversation/chats/$CHAT_ID/submit" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "mode=ask_advice" \
+  -F "text=this happened last date and I do not know what it means" \
+  -F "images[]=@/absolute/path/to/chat-screenshot-1.png" \
+  -F "images[]=@/absolute/path/to/chat-screenshot-2.jpg"
+```
+
+Example response:
+
+```json
+{
+  "chatId": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "userEntry": {
+    "id": "11c9c13f-98f7-4a3f-9545-2c6dd8d0f116",
+    "role": "user_submission",
+    "mode": "ask_advice",
+    "contentText": "Pasted text:\nthis happened last date and I do not know what it means\n\nScreenshot OCR:\nScreenshot 1:\n...\n\nScreenshot 2:\n...",
+    "sourceText": "this happened last date and I do not know what it means",
+    "ocrText": "Screenshot 1:\n...\n\nScreenshot 2:\n...",
+    "createdAt": "2026-03-23T19:09:01.441Z"
+  },
+  "assistantEntry": {
+    "id": "8cbf5c56-33ab-47b2-b717-aec5eaebf2e2",
+    "role": "assistant_output",
+    "mode": "ask_advice",
+    "status": "success",
+    "contentText": "Her replies suggest interest, but she may be testing consistency before committing to another date.",
+    "payload": {
+      "mode": "ask_advice",
+      "advice": "Her replies suggest interest, but she may be testing consistency before committing to another date.",
+      "nextSteps": [
+        "Send one clear and calm follow-up proposing a day and time.",
+        "Avoid overexplaining; keep the message short and confident.",
+        "If she stays vague again, give space and let her re-engage."
+      ]
+    },
+    "model": "gpt-5.2",
+    "usage": null,
+    "errorMessage": null,
+    "createdAt": "2026-03-23T19:09:03.090Z"
+  },
+  "output": {
+    "mode": "ask_advice",
+    "advice": "Her replies suggest interest, but she may be testing consistency before committing to another date.",
+    "nextSteps": [
+      "Send one clear and calm follow-up proposing a day and time.",
+      "Avoid overexplaining; keep the message short and confident.",
+      "If she stays vague again, give space and let her re-engage."
+    ],
+    "model": "gpt-5.2"
+  },
+  "errorMessage": null
+}
+```
+
+Generate a full analysis card from latest chat context:
+
+```bash
+curl -sS -X POST "$API/conversation/chats/$CHAT_ID/analyze-options" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Notes:
+
+- analyzes the latest chat context (no body required)
+- requires at least one prior `user_submission` entry in that chat
+- generates and stores a new `assistant_output` entry with `mode=analyze_options` on every call
+
+Example response:
+
+```json
+{
+  "chatId": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "analysisEntryId": "b31b87b2-f9b5-4ea0-b7a3-68f25fb4cb0a",
+  "analysis": {
+    "conversationState": {
+      "title": "High curiosity with playful push-pull",
+      "tags": ["intrigued", "playful"]
+    },
+    "coreStrategy": "Match their energy with concise confidence and one clear intent signal.",
+    "flowScore": 85,
+    "successProbability": 82,
+    "scoreBand": "high",
+    "nextSteps": [
+      "Wait 15-20 minutes before replying.",
+      "Send one playful line plus a clear invite."
+    ],
+    "suggestedReplies": [
+      {
+        "label": "safe",
+        "text": "Haha, bold move for a Tuesday.",
+        "recommended": false
+      },
+      {
+        "label": "balanced",
+        "text": "You are full of surprises. Let us see if you can keep that energy up.",
+        "recommended": true
+      },
+      {
+        "label": "bold",
+        "text": "Usually I charge for compliments that good, but I will make an exception.",
+        "recommended": false
+      }
+    ],
+    "rationale": "Their last messages increased in assertiveness, so a balanced mirror is likely to perform best.",
+    "safety": {
+      "blocked": false,
+      "flags": []
+    },
+    "model": "gpt-5.2",
+    "usage": null,
+    "providerResponseId": "resp_123"
+  },
+  "createdAt": "2026-03-24T02:18:51.129Z"
 }
 ```
 

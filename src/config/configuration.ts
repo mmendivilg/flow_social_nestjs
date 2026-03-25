@@ -48,6 +48,22 @@ const parsePort = (value: string | undefined): number => {
   return parsed;
 };
 
+const parsePositiveInt = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
 export default () => ({
   app: {
     port: parsePort(process.env.PORT),
@@ -70,5 +86,25 @@ export default () => ({
         'Backend API for social coaching and tuning',
       version: process.env.SWAGGER_VERSION?.trim() || '1.0.0',
     },
+  },
+  conversation: {
+    contextLimit: parsePositiveInt(process.env.CONVERSATION_CONTEXT_LIMIT, 20),
+    maxImages: parsePositiveInt(process.env.CONVERSATION_MAX_IMAGES, 3),
+    maxImageMb: parsePositiveInt(process.env.CONVERSATION_MAX_IMAGE_MB, 5),
+    maxTextChars: parsePositiveInt(
+      process.env.CONVERSATION_MAX_TEXT_CHARS,
+      5000,
+    ),
+  },
+  ai: {
+    conversationModel:
+      process.env.OPENAI_CONVERSATION_MODEL?.trim() ||
+      process.env.OPENAI_MODEL?.trim() ||
+      'gpt-5.2',
+    ocrModel:
+      process.env.OPENAI_OCR_MODEL?.trim() ||
+      process.env.OPENAI_CONVERSATION_MODEL?.trim() ||
+      process.env.OPENAI_MODEL?.trim() ||
+      'gpt-4.1-mini',
   },
 });

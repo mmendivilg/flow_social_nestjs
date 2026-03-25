@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const csvString = z.string().trim().min(1);
 const booleanString = z.enum(['true', 'false']);
+const positiveIntegerString = z.string().regex(/^[1-9]\d*$/);
 
 const envSchema = z
   .object({
@@ -16,6 +17,12 @@ const envSchema = z
     SWAGGER_TITLE: z.string().trim().min(1).optional(),
     SWAGGER_DESCRIPTION: z.string().trim().min(1).optional(),
     SWAGGER_VERSION: z.string().trim().min(1).optional(),
+    OPENAI_CONVERSATION_MODEL: z.string().trim().min(1).optional(),
+    OPENAI_OCR_MODEL: z.string().trim().min(1).optional(),
+    CONVERSATION_CONTEXT_LIMIT: positiveIntegerString.optional(),
+    CONVERSATION_MAX_IMAGES: positiveIntegerString.optional(),
+    CONVERSATION_MAX_IMAGE_MB: positiveIntegerString.optional(),
+    CONVERSATION_MAX_TEXT_CHARS: positiveIntegerString.optional(),
   })
   .passthrough();
 

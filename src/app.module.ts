@@ -11,6 +11,7 @@ import { CoachingModule } from './coaching/coaching.module';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { ConfidenceTestModule } from './confidence-test/confidence-test.module';
+import { ConversationModule } from './conversation/conversation.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ConfidenceTestModule } from './confidence-test/confidence-test.module';
     PreferencesModule,
     CoachingModule,
     ConfidenceTestModule,
+    ConversationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
