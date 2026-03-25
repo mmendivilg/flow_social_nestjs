@@ -28,5 +28,15 @@ export type UpdateConversationChatBodyDto = z.infer<
   typeof UpdateConversationChatBodySchema
 >;
 
+export const UpdateConversationChatFavoriteBodySchema = z
+  .object({
+    isFavorite: z.boolean(),
+  })
+  .strict();
+
+export type UpdateConversationChatFavoriteBodyDto = z.infer<
+  typeof UpdateConversationChatFavoriteBodySchema
+>;
+
 export const SubmitModeSchema = z.enum(SUBMIT_MODES);
 export type SubmitModeDto = z.infer<typeof SubmitModeSchema>;

@@ -14,6 +14,11 @@ import type { ChatType } from '../conversation.types';
 @Entity('conversation_chats')
 @Index('IDX_conversation_chats_user_updated', ['userId', 'updatedAt'])
 @Index('IDX_conversation_chats_user_type', ['userId', 'type'])
+@Index('IDX_conversation_chats_user_favorite_updated', [
+  'userId',
+  'isFavorite',
+  'updatedAt',
+])
 export class ConversationChatEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -30,6 +35,9 @@ export class ConversationChatEntity {
 
   @Column({ name: 'title', type: 'varchar', nullable: true })
   title: string | null;
+
+  @Column({ name: 'is_favorite', type: 'boolean', default: false })
+  isFavorite: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

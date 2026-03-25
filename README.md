@@ -352,6 +352,7 @@ Example response:
   "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
   "type": "dating",
   "title": "Luna - WhatsApp",
+  "isFavorite": false,
   "createdAt": "2026-03-23T19:00:10.031Z",
   "updatedAt": "2026-03-23T19:00:10.031Z"
 }
@@ -363,12 +364,18 @@ Save chat id for next requests:
 export CHAT_ID="6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7"
 ```
 
-List your conversation chats (cursor pagination):
+List your conversation chats (cursor pagination + optional filters):
 
 ```bash
 curl -sS "$API/conversation/chats?limit=20" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
+
+Optional query params:
+
+- `favorite=true|false`
+- `q=<search text>` (matches title and type)
+- `type=dating|friends|work|general`
 
 Example response:
 
@@ -379,6 +386,7 @@ Example response:
       "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
       "type": "dating",
       "title": "Luna - WhatsApp",
+      "isFavorite": false,
       "createdAt": "2026-03-23T19:00:10.031Z",
       "updatedAt": "2026-03-23T19:02:45.903Z"
     }
@@ -406,8 +414,33 @@ Example response:
   "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
   "type": "friends",
   "title": "Luna - Chill chat",
+  "isFavorite": false,
   "createdAt": "2026-03-23T19:00:10.031Z",
   "updatedAt": "2026-03-23T19:03:30.277Z"
+}
+```
+
+Mark or unmark a conversation chat as favorite:
+
+```bash
+curl -sS -X PATCH "$API/conversation/chats/$CHAT_ID/favorite" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "isFavorite": true
+  }'
+```
+
+Example response:
+
+```json
+{
+  "id": "6a9f22ce-e4ab-4f03-8b7b-3ab82d0d66d7",
+  "type": "friends",
+  "title": "Luna - Chill chat",
+  "isFavorite": true,
+  "createdAt": "2026-03-23T19:00:10.031Z",
+  "updatedAt": "2026-03-23T19:06:04.811Z"
 }
 ```
 

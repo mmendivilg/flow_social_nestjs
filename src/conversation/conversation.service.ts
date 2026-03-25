@@ -37,6 +37,9 @@ export type UploadedConversationImage = {
 type ListInput = {
   limit?: string;
   cursor?: string;
+  favorite?: string;
+  q?: string;
+  type?: string;
 };
 
 type SubmitToConversationInput = {
@@ -86,6 +89,7 @@ export class ConversationService {
         userId: params.userId,
         type: params.type,
         title: this.normalizeTitle(params.title),
+        isFavorite: false,
       }),
     );
 
@@ -95,6 +99,9 @@ export class ConversationService {
   async listChatsForUser(userId: string, query: ListInput) {
     const limit = this.parseLimit(query.limit);
     const cursor = this.parseCursor(query.cursor);
+    const favorite = this.parseOptionalBoolean(query.favorite, 'favorite');
+    const type = this.parseOptionalChatType(query.type);
+    const search = this.normalizeSearchQuery(query.q);
 
     const qb = this.chatsRepo
       .createQueryBuilder('chat')
@@ -102,6 +109,25 @@ export class ConversationService {
       .orderBy('chat.updatedAt', 'DESC')
       .addOrderBy('chat.id', 'DESC')
       .take(limit + 1);
+
+    if (favorite !== null) {
+      qb.andWhere('chat.isFavorite = :isFavorite', { isFavorite: favorite });
+    }
+
+    if (type) {
+      qb.andWhere('chat.type = :type', { type });
+    }
+
+    if (search) {
+      const searchValue = `%${search}%`;
+      qb.andWhere(
+        new Brackets((whereQb) => {
+          whereQb
+            .where('chat.title ILIKE :search', { search: searchValue })
+            .orWhere('chat.type ILIKE :search', { search: searchValue });
+        }),
+      );
+    }
 
     if (cursor) {
       qb.andWhere(
@@ -155,6 +181,17 @@ export class ConversationService {
     if (params.title !== undefined) {
       chat.title = this.normalizeTitle(params.title);
     }
+
+    return this.chatsRepo.save(chat);
+  }
+
+  async setChatFavoriteForUser(params: {
+    userId: string;
+    chatId: string;
+    isFavorite: boolean;
+  }) {
+    const chat = await this.getChatForUser(params.chatId, params.userId);
+    chat.isFavorite = params.isFavorite;
 
     return this.chatsRepo.save(chat);
   }
@@ -497,6 +534,50 @@ export class ConversationService {
     }
 
     return Math.min(parsed, MAX_LIMIT);
+  }
+
+  private parseOptionalBoolean(
+    rawValue: string | undefined,
+    fieldName: string,
+  ): boolean | null {
+    if (rawValue === undefined) return null;
+
+    const normalized = rawValue.trim().toLowerCase();
+    if (!normalized) return null;
+
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+
+    throw new BadRequestException(`Invalid ${fieldName} value`);
+  }
+
+  private parseOptionalChatType(rawType?: string): ChatType | null {
+    if (rawType === undefined) return null;
+
+    const normalized = rawType.trim();
+    if (!normalized) return null;
+
+    if (!CHAT_TYPES.includes(normalized as ChatType)) {
+      throw new BadRequestException('Invalid chat type');
+    }
+
+    return normalized as ChatType;
+  }
+
+  private normalizeSearchQuery(rawQuery?: string): string | null {
+    if (rawQuery === undefined) return null;
+
+    const trimmed = rawQuery.trim();
+    if (!trimmed) return null;
+
+    const maxLength = 120;
+    if (trimmed.length > maxLength) {
+      throw new BadRequestException(
+        `Search query exceeds maximum length of ${maxLength} characters`,
+      );
+    }
+
+    return trimmed;
   }
 
   private parseCursor(rawCursor?: string): CursorToken | null {

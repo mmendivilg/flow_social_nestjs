@@ -24,6 +24,7 @@ function makeChat(overrides: Partial<ConversationChatEntity> = {}) {
     userId: 'user-1',
     type: 'dating',
     title: null,
+    isFavorite: false,
     createdAt: new Date('2026-03-23T10:00:00.000Z'),
     updatedAt: new Date('2026-03-23T10:00:00.000Z'),
     ...overrides,
@@ -163,6 +164,29 @@ describe('ConversationService', () => {
         mode: 'suggest_reply',
         text: '   ',
         images: [],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('updates favorite status for one chat', async () => {
+    chatsRepo.findOne.mockResolvedValue(makeChat());
+    chatsRepo.save.mockResolvedValue(makeChat({ isFavorite: true }));
+
+    const result = await service.setChatFavoriteForUser({
+      userId: 'user-1',
+      chatId: 'chat-1',
+      isFavorite: true,
+    });
+
+    expect(result.isFavorite).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(chatsRepo.save).toHaveBeenCalled();
+  });
+
+  it('rejects list chat query when favorite filter is invalid', async () => {
+    await expect(
+      service.listChatsForUser('user-1', {
+        favorite: 'maybe',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });

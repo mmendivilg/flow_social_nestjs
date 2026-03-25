@@ -21,6 +21,8 @@ import {
   type CreateConversationChatBodyDto,
   CreateConversationChatBodySchema,
   SubmitModeSchema,
+  type UpdateConversationChatFavoriteBodyDto,
+  UpdateConversationChatFavoriteBodySchema,
   type UpdateConversationChatBodyDto,
   UpdateConversationChatBodySchema,
 } from './dto/conversation.dto';
@@ -74,6 +76,7 @@ export class ConversationController {
       id: chat.id,
       type: chat.type,
       title: chat.title,
+      isFavorite: chat.isFavorite,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     };
@@ -84,10 +87,16 @@ export class ConversationController {
     @CurrentUser() user: AccessTokenUser,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
+    @Query('favorite') favorite?: string,
+    @Query('q') q?: string,
+    @Query('type') type?: string,
   ) {
     const result = await this.conversation.listChatsForUser(user.userId, {
       limit,
       cursor,
+      favorite,
+      q,
+      type,
     });
 
     return {
@@ -95,6 +104,7 @@ export class ConversationController {
         id: chat.id,
         type: chat.type,
         title: chat.title,
+        isFavorite: chat.isFavorite,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
       })),
@@ -120,6 +130,30 @@ export class ConversationController {
       id: chat.id,
       type: chat.type,
       title: chat.title,
+      isFavorite: chat.isFavorite,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+    };
+  }
+
+  @Patch('chats/:id/favorite')
+  async setFavorite(
+    @CurrentUser() user: AccessTokenUser,
+    @Param('id') chatId: string,
+    @Body(new ZodValidationPipe(UpdateConversationChatFavoriteBodySchema))
+    body: UpdateConversationChatFavoriteBodyDto,
+  ) {
+    const chat = await this.conversation.setChatFavoriteForUser({
+      userId: user.userId,
+      chatId,
+      isFavorite: body.isFavorite,
+    });
+
+    return {
+      id: chat.id,
+      type: chat.type,
+      title: chat.title,
+      isFavorite: chat.isFavorite,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
     };
