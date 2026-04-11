@@ -1,12 +1,83 @@
 // src/coaching/coaching.controller.ts
-import { Body, Controller, Post, UsePipes } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
   GenerateCoachingBodySchema,
   type GenerateCoachingBodyDto,
 } from './dto/generate-coaching.dto';
-import { AiV2Service } from 'src/ai/ai-v2.service';
-import { ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { AiV2Service } from '../ai/ai-v2.service';
+import { ApiBody, ApiConsumes, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+
+const parsePositiveInt = (value: string | undefined, fallback: number) => {
+  if (!value) return fallback;
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return parsed;
+};
+
+const DEFAULT_MAX_IMAGE_MB = 5;
+const coachingV2UploadMaxImageMb = parsePositiveInt(
+  process.env.COACHING_V2_MAX_IMAGE_MB,
+  DEFAULT_MAX_IMAGE_MB,
+);
+const coachingV2UploadMaxImageBytes = coachingV2UploadMaxImageMb * 1024 * 1024;
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+]);
+
+type UploadedCoachingImage = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+};
+
+const requestSchemaFields = {
+  scenarioText: {
+    type: 'string',
+    example: 'I met her at a coffee shop and got her number.',
+  },
+  lastMessageText: { type: 'string', nullable: true, example: null },
+  goal: {
+    type: 'string',
+    enum: ['casual', 'serious_relationship', 'just_chat'],
+  },
+  vibe: {
+    type: 'string',
+    enum: [
+      'relax_joker',
+      'quiet_polite',
+      'confident_direct',
+      'reserved_respectful',
+    ],
+  },
+  flirtLevel: { type: 'string', enum: ['none', 'light', 'classy'] },
+  constraints: {
+    type: 'object',
+    additionalProperties: true,
+    example: {
+      language: 'es',
+      locale: 'es-MX',
+      numOptions: 3,
+      emojiLevel: 'some',
+    },
+  },
+};
 
 @ApiTags('coaching-v2')
 @Controller('coaching-v2')
@@ -14,47 +85,46 @@ export class CoachingV2Controller {
   constructor(private readonly ai: AiV2Service) {}
 
   @Post()
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        files: 1,
+        fileSize: coachingV2UploadMaxImageBytes,
+      },
+    }),
+  )
+  @ApiConsumes('application/json', 'multipart/form-data')
   @ApiBody({
     schema: {
-      type: 'object',
-      required: [
-        'scenarioText',
-        'lastMessageText',
-        'goal',
-        'vibe',
-        'flirtLevel',
-      ],
-      properties: {
-        scenarioText: {
-          type: 'string',
-          example: 'I met her at a coffee shop and got her number.',
-        },
-        lastMessageText: { type: 'string', nullable: true, example: null },
-        goal: {
-          type: 'string',
-          enum: ['casual', 'serious_relationship', 'just_chat'],
-        },
-        vibe: {
-          type: 'string',
-          enum: [
-            'relax_joker',
-            'quiet_polite',
-            'confident_direct',
-            'reserved_respectful',
-          ],
-        },
-        flirtLevel: { type: 'string', enum: ['none', 'light', 'classy'] },
-        constraints: {
+      oneOf: [
+        {
           type: 'object',
-          additionalProperties: true,
-          example: {
-            language: 'es',
-            locale: 'es-MX',
-            numOptions: 3,
-            emojiLevel: 'some',
+          required: ['scenarioText', 'goal', 'vibe', 'flirtLevel'],
+          properties: requestSchemaFields,
+        },
+        {
+          type: 'object',
+          required: ['scenarioText', 'goal', 'vibe', 'flirtLevel'],
+          properties: {
+            ...requestSchemaFields,
+            constraints: {
+              oneOf: [
+                requestSchemaFields.constraints,
+                {
+                  type: 'string',
+                  example:
+                    '{"language":"es","locale":"es-MX","numOptions":3,"emojiLevel":"some"}',
+                },
+              ],
+            },
+            image: {
+              type: 'string',
+              format: 'binary',
+              nullable: true,
+            },
           },
         },
-      },
+      ],
     },
   })
   @ApiOkResponse({
@@ -99,9 +169,13 @@ export class CoachingV2Controller {
       },
     },
   })
-  @UsePipes(new ZodValidationPipe(GenerateCoachingBodySchema))
-  async generate(@Body() body: GenerateCoachingBodyDto) {
-    // Forward validated input to AiService
+  async generate(
+    @Body(new ZodValidationPipe(GenerateCoachingBodySchema))
+    body: GenerateCoachingBodyDto,
+    @UploadedFile() image?: UploadedCoachingImage,
+  ) {
+    this.assertValidImage(image);
+
     const result = await this.ai.generateCoaching({
       scenarioText: body.scenarioText,
       lastMessageText: body.lastMessageText ?? null,
@@ -109,10 +183,15 @@ export class CoachingV2Controller {
       vibe: body.vibe,
       flirtLevel: body.flirtLevel,
       constraints: body.constraints,
+      image: image
+        ? {
+            buffer: image.buffer,
+            mimetype: image.mimetype,
+            originalname: image.originalname,
+          }
+        : undefined,
     });
 
-    // You can decide how much to expose to the frontend.
-    // For v1, return message + optional options + safety.
     return {
       status: 'success',
       message: result.message,
@@ -121,5 +200,23 @@ export class CoachingV2Controller {
       safety: result.safety,
       detected: result.detected ?? undefined,
     };
+  }
+
+  private assertValidImage(image?: UploadedCoachingImage) {
+    if (!image) {
+      return;
+    }
+
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(image.mimetype)) {
+      throw new BadRequestException(
+        `Unsupported image type: ${image.mimetype}`,
+      );
+    }
+
+    if (image.size > coachingV2UploadMaxImageBytes) {
+      throw new BadRequestException(
+        `Image exceeds ${coachingV2UploadMaxImageMb} MB limit`,
+      );
+    }
   }
 }

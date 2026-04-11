@@ -2,6 +2,14 @@ import { z } from 'zod';
 // NOTE: Keep enums in one place (ai.service) to avoid drift.
 // This DTO uses Zod for runtime validation + strong typing.
 
+const NullableNonEmptyStringSchema = z.preprocess((value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') return value;
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}, z.string().min(1).nullable());
+
 export const GenerateCoachingConstraintsSchema = z
   .object({
     language: z.enum(['en', 'es'] as const).optional(),
@@ -55,10 +63,26 @@ export const GenerateCoachingConstraintsSchema = z
   })
   .strict();
 
+const ConstraintsInputSchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}, GenerateCoachingConstraintsSchema.optional());
+
 export const GenerateCoachingBodySchema = z
   .object({
-    scenarioText: z.string().min(5),
-    lastMessageText: z.string().min(1).nullable(),
+    scenarioText: z.string().trim().min(5),
+    lastMessageText: NullableNonEmptyStringSchema,
     goal: z.enum(['casual', 'serious_relationship', 'just_chat'] as const),
     vibe: z.enum([
       'relax_joker',
@@ -67,7 +91,7 @@ export const GenerateCoachingBodySchema = z
       'reserved_respectful',
     ] as const),
     flirtLevel: z.enum(['none', 'light', 'classy'] as const),
-    constraints: GenerateCoachingConstraintsSchema.optional(),
+    constraints: ConstraintsInputSchema,
   })
   .strict();
 

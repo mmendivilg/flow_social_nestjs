@@ -101,6 +101,11 @@ export type GenerateCoachingInput = {
   vibe: CoachingVibe;
   flirtLevel: FlirtLevel;
   constraints?: GenerateCoachingConstraints;
+  image?: {
+    buffer: Buffer;
+    mimetype: string;
+    originalname?: string;
+  };
 };
 
 export type CoachingOption = {
@@ -286,6 +291,7 @@ export class AiV2Service {
     input: GenerateCoachingInput,
   ): Promise<GenerateCoachingResult> {
     const c = normalizeConstraints(input.constraints);
+    const imageDataUrl = input.image ? this.toImageDataUrl(input.image) : null;
 
     const system = [
       'You are a respectful dating/social-skills coach.',
@@ -367,6 +373,9 @@ export class AiV2Service {
       '',
       'Task:',
       '- Produce message(s) to send next.',
+      input.image
+        ? '- An image is attached. Use it as extra context if it adds signal.'
+        : '- No image is attached.',
       '- Ensure the output is valid JSON only.',
     ]
       .filter(Boolean)
@@ -380,6 +389,7 @@ export class AiV2Service {
       model,
       system,
       user,
+      imageDataUrl: imageDataUrl ?? undefined,
     });
 
     const parsed1 = this.validateCoachingOutput(first);
@@ -400,6 +410,7 @@ export class AiV2Service {
         'Invalid output was:',
         first,
       ].join('\n'),
+      imageDataUrl: imageDataUrl ?? undefined,
     });
 
     const parsed2 = this.validateCoachingOutput(repair);
@@ -430,19 +441,46 @@ export class AiV2Service {
     model: string;
     system: string;
     user: string;
+    imageDataUrl?: string;
   }): Promise<string> {
-    // Uses Chat Completions API shape for broad compatibility
-    const resp = await this.client.chat.completions.create({
+    const content: Array<
+      | { type: 'input_text'; text: string }
+      | { type: 'input_image'; image_url: string; detail: 'auto' }
+    > = [{ type: 'input_text', text: args.user }];
+
+    if (args.imageDataUrl) {
+      content.push({
+        type: 'input_image',
+        image_url: args.imageDataUrl,
+        detail: 'auto',
+      });
+    }
+
+    const resp = await this.client.responses.create({
       model: args.model,
-      temperature: 0.7,
-      messages: [
-        { role: 'system', content: args.system },
-        { role: 'user', content: args.user },
+      instructions: args.system,
+      input: [
+        {
+          role: 'user',
+          content,
+        },
       ],
     });
 
-    const text = resp.choices?.[0]?.message?.content ?? '';
+    const text = resp.output_text ?? '';
     return text.trim();
+  }
+
+  private toImageDataUrl(image: {
+    buffer: Buffer;
+    mimetype: string;
+    originalname?: string;
+  }): string {
+    if (!image.buffer || image.buffer.length === 0) {
+      throw new Error('Uploaded image is empty');
+    }
+
+    return `data:${image.mimetype};base64,${image.buffer.toString('base64')}`;
   }
 
   /* =========================================================

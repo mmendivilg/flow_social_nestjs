@@ -794,7 +794,7 @@ curl -sS "$API/coaching/feedback?limit=20" \
 
 ### Coaching v2 (public endpoint in current code)
 
-Generate structured coaching output:
+Generate structured coaching output (JSON body, no image):
 
 ```bash
 curl -sS -X POST "$API/coaching-v2" \
@@ -815,6 +815,29 @@ curl -sS -X POST "$API/coaching-v2" \
     }
   }'
 ```
+
+Generate structured coaching output with image (`multipart/form-data`):
+
+```bash
+curl -sS -X POST "$API/coaching-v2" \
+  -F "scenarioText=I matched with someone and want to send the first text." \
+  -F "lastMessageText=" \
+  -F "goal=casual" \
+  -F "vibe=confident_direct" \
+  -F "flirtLevel=light" \
+  -F 'constraints={"language":"es","locale":"es-MX","numOptions":3,"emojiLevel":"some","riskTolerance":"balanced","includeRationale":true}' \
+  -F "image=@/absolute/path/to/context.png;type=image/png"
+```
+
+Notes for `POST /coaching-v2`:
+
+- accepts both `application/json` and `multipart/form-data`
+- `image` is optional
+- max image count: `1`
+- accepted image MIME types: `image/jpeg`, `image/png`, `image/webp`
+- max image size: `5 MB` (or `COACHING_V2_MAX_IMAGE_MB` if configured)
+- for multipart requests, send `constraints` as a JSON string
+- text fields: `scenarioText`, `lastMessageText`, `goal`, `vibe`, `flirtLevel`, `constraints`
 
 Typical response:
 
